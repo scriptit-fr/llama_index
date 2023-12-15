@@ -2,10 +2,74 @@
 
 ## Unreleased
 
+### Bug Fixes / Nits
+
+- Fixed missing `default=None` for `LLM.system_prompt` (#9504)
+
+## [0.9.15] - 2023-12-13
+
+### New Features
+
+- Added full support for Google Gemini text+vision models (#9452)
+- Added new Google Semantic Retriever (#9440)
+- added `from_existing()` method + async support to OpenAI assistants (#9367)
+
+### Bug Fixes / Nits
+
+- Fixed huggingface LLM system prompt and messages to prompt (#9463)
+- Fixed ollama additional kwargs usage (#9455)
+
+## [0.9.14] - 2023-12-11
+
+### New Features
+
+- Add MistralAI LLM (#9444)
+- Add MistralAI Embeddings (#9441)
+- Add `Ollama` Embedding class (#9341)
+- Add `FlagEmbeddingReranker` for reranking (#9285)
+- feat: PgVectorStore support advanced metadata filtering (#9377)
+- Added `sql_only` parameter to SQL query engines to avoid executing SQL (#9422)
+
+### Bug Fixes / Nits
+
+- Feat/PgVector Support custom hnsw.ef_search and ivfflat.probes (#9420)
+- fix F1 score definition, update copyright year (#9424)
+- Change more than one image input for Replicate Multi-modal models from error to warning (#9360)
+- Removed GPT-Licensed `aiostream` dependency (#9403)
+- Fix result of BedrockEmbedding with Cohere model (#9396)
+- Only capture valid tool names in react agent (#9412)
+- Fixed `top_k` being multiplied by 10 in azure cosmos (#9438)
+- Fixed hybrid search for OpenSearch (#9430)
+
+### Breaking Changes
+
+- Updated the base `LLM` interface to match `LLMPredictor` (#9388)
+- Deprecated `LLMPredictor` (#9388)
+
+## [0.9.13] - 2023-12-06
+
+### New Features
+
+- Added batch prediction support for `LabelledRagDataset` (#9332)
+
+### Bug Fixes / Nits
+
+- Fixed save and load for faiss vector store (#9330)
+
+## [0.9.12] - 2023-12-05
+
 ### New Features
 
 - Added an option `reuse_client` to openai/azure to help with async timeouts. Set to `False` to see improvements (#9301)
 - Added support for `vLLM` llm (#9257)
+- Add support for python 3.12 (#9304)
+- Support for `claude-2.1` model name (#9275)
+
+### Bug Fixes / Nits
+
+- Fix embedding format for bedrock cohere embeddings (#9265)
+- Use `delete_kwargs` for filtering in weaviate vector store (#9300)
+- Fixed automatic qdrant client construction (#9267)
 
 ## [0.9.11] - 2023-12-03
 
@@ -45,7 +109,7 @@
 ### Breaking Changes / Deprecations
 
 - Added `LocalAI` demo and began deprecation cycle (#9151)
-- Deprecate `QueryResponseDataset` and `DatasetGenerator` of `evaluaton` module (#9165)
+- Deprecate `QueryResponseDataset` and `DatasetGenerator` of `evaluation` module (#9165)
 
 ### Bug Fixes / Nits
 

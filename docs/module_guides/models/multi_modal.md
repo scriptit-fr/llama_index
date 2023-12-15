@@ -56,16 +56,16 @@ image_store = QdrantVectorStore(
     client=client, collection_name="image_collection"
 )
 
-# if you only need image_store for image retrieval,
-# don't need to pass text_store for StorageContext
-storage_context = StorageContext.from_defaults(vector_store=text_store)
-# storage_context = StorageContext.from_defaults()
+storage_context = StorageContext.from_defaults(
+    vector_store=text_store, image_store=image_store
+)
 
 # Load text and image documents from local folder
 documents = SimpleDirectoryReader("./data_folder/").load_data()
 # Create the MultiModal index
 index = MultiModalVectorStoreIndex.from_documents(
-    documents, storage_context=storage_context, image_vector_store=image_store
+    documents,
+    storage_context=storage_context,
 )
 ```
 
@@ -82,6 +82,10 @@ retriever_engine = index.as_retriever(
 
 # retrieve more information from the GPT4V response
 retrieval_results = retriever_engine.retrieve(response)
+
+# if you only need image retrieval without text retrieval
+# you can use `text_to_image_retrieve`
+# retrieval_results = retriever_engine.text_to_image_retrieve(response)
 
 qa_tmpl_str = (
     "Context information is below.\n"
@@ -127,9 +131,10 @@ These notebooks serve as examples how to leverage and integrate Multi-Modal LLM 
 | Multi-Modal<br>Vision Models                                                     | Single<br>Image<br>Reasoning | Multiple<br>Images<br>Reasoning | Image<br>Embeddings | Simple<br>Query<br>Engine | Pydantic<br>Structured<br>Output |
 | -------------------------------------------------------------------------------- | ---------------------------- | ------------------------------- | ------------------- | ------------------------- | -------------------------------- |
 | [GPT4V](/examples/multi_modal/gpt4v_multi_modal_retrieval.ipynb)<br>(OpenAI API) | ✅                           | ✅                              | 🛑                  | ✅                        | ✅                               |
+| [Gemini](/examples/multi_modal/gemini.ipynb)<br>(Google)                         | ✅                           | ✅                              | 🛑                  | ✅                        | ✅                               |
 | [CLIP](/examples/multi_modal/image_to_image_retrieval.ipynb)<br>(Local host)     | 🛑                           | 🛑                              | ✅                  | 🛑                        | 🛑                               |
 | [LLaVa](/examples/multi_modal/llava_multi_modal_tesla_10q.ipynb)<br>(replicate)  | ✅                           | 🛑                              | 🛑                  | ✅                        | ⚠️                               |
-| [Fuyu-8B](/examples/multi_modal/replicate_multi_modal.ipynb)<br>(replicate)      | ✅                           | 🛑                              | 🛑                  | ✅                        | ✅                               |
+| [Fuyu-8B](/examples/multi_modal/replicate_multi_modal.ipynb)<br>(replicate)      | ✅                           | 🛑                              | 🛑                  | ✅                        | ⚠️                               |
 | [ImageBind<br>](https://imagebind.metademolab.com/)[To integrate]                | 🛑                           | 🛑                              | ✅                  | 🛑                        | 🛑                               |
 | [MiniGPT-4<br>](/examples/multi_modal/replicate_multi_modal.ipynb)               | ✅                           | 🛑                              | 🛑                  | ✅                        | ⚠️                               |
 | [CogVLM<br>](https://github.com/THUDM/CogVLM)                                    | ✅                           | 🛑                              | 🛑                  | ✅                        | ⚠️                               |
@@ -153,6 +158,7 @@ We support integrations with GPT4-V, CLIP (OpenAI), BLIP (Salesforce), and Repli
 maxdepth: 1
 ---
 /examples/multi_modal/openai_multi_modal.ipynb
+/examples/multi_modal/gemini.ipynb
 /examples/multi_modal/replicate_multi_modal.ipynb
 /examples/multi_modal/multi_modal_pydantic.ipynb
 /examples/multi_modal/gpt4v_experiments_cot.ipynb
