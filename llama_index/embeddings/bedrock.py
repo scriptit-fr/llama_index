@@ -6,11 +6,8 @@ from typing import Any, Dict, List, Literal, Optional
 
 from llama_index.bridge.pydantic import PrivateAttr
 from llama_index.callbacks.base import CallbackManager
-from llama_index.embeddings.base import (
-    DEFAULT_EMBED_BATCH_SIZE,
-    BaseEmbedding,
-    Embedding,
-)
+from llama_index.constants import DEFAULT_EMBED_BATCH_SIZE
+from llama_index.core.embeddings.base import BaseEmbedding, Embedding
 
 
 class PROVIDERS(str, Enum):
@@ -37,6 +34,7 @@ PROVIDER_SPECIFIC_IDENTIFIERS = {
 
 class BedrockEmbedding(BaseEmbedding):
     _client: Any = PrivateAttr()
+    _verbose: bool = PrivateAttr()
 
     def __init__(
         self,
@@ -44,8 +42,10 @@ class BedrockEmbedding(BaseEmbedding):
         client: Any = None,
         embed_batch_size: int = DEFAULT_EMBED_BATCH_SIZE,
         callback_manager: Optional[CallbackManager] = None,
+        verbose: bool = False,
     ):
         self._client = client
+        self._verbose = verbose
 
         super().__init__(
             model_name=model_name,
@@ -136,6 +136,7 @@ class BedrockEmbedding(BaseEmbedding):
         aws_profile: Optional[str] = None,
         embed_batch_size: int = DEFAULT_EMBED_BATCH_SIZE,
         callback_manager: Optional[CallbackManager] = None,
+        verbose: bool = False,
     ) -> "BedrockEmbedding":
         """
         Instantiate using AWS credentials.
@@ -192,11 +193,12 @@ class BedrockEmbedding(BaseEmbedding):
             model_name=model_name,
             embed_batch_size=embed_batch_size,
             callback_manager=callback_manager,
+            verbose=verbose,
         )
 
     def _get_embedding(self, payload: str, type: Literal["text", "query"]) -> Embedding:
         if self._client is None:
-            self.set_credentials(self.model_name)
+            self.set_credentials()
 
         if self._client is None:
             raise ValueError("Client not set")
@@ -242,7 +244,8 @@ class BedrockEmbedding(BaseEmbedding):
             }
 
         """
-        print("provider: ", provider, PROVIDERS.AMAZON)
+        if self._verbose:
+            print("provider: ", provider, PROVIDERS.AMAZON)
         if provider == PROVIDERS.AMAZON:
             request_body = json.dumps({"inputText": payload})
         elif provider == PROVIDERS.COHERE:

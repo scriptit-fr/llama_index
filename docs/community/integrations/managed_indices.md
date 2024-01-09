@@ -87,10 +87,74 @@ query_engine = index.as_query_engine()
 response = query_engine.query("What did the author do growing up?")
 ```
 
+If you already have documents in your corpus you can just access them directly by constructing the VectaraIndex as follows:
+
+```
+index = VectaraIndex()
+```
+
+And the index will connect to the existing corpus without loading any new documents.
+
 ```{toctree}
 ---
 caption: Examples
 maxdepth: 1
 ---
 /examples/managed/vectaraDemo.ipynb
+/examples/retrievers/vectara_auto_retriever.ipynb
+```
+
+## Zilliz
+
+First, set up your [Zilliz Cloud](https://cloud.zilliz.com/signup?utm_source=twitter&utm_medium=social%20&utm_campaign=2023-12-22_social_pipeline-llamaindex_twitter) account and create a free serverless cluster.
+Then copy the Cluster ID and API Key from your account.
+
+Now you can construct `ZillizCloudPipelineIndex` to index docs and query as follows:
+
+```python
+import os
+
+from llama_index import ManagedIndex
+from llama_index.indices import ZillizCloudPipelineIndex
+
+# Load documents from url and build document index
+zcp_index = ZillizCloudPipelineIndex.from_document_url(
+    url="https://publicdataset.zillizcloud.com/milvus_doc.md",
+    cluster_id="<YOUR_ZILLIZ_CLUSTER_ID>",
+    token="<YOUR_ZILLIZ_API_KEY>",
+    metadata={"version": "2.3"},  # optional
+)
+
+# Insert more docs into index, eg. a Milvus v2.2 document
+zcp_index.insert_doc_url(
+    url="https://publicdataset.zillizcloud.com/milvus_doc_22.md",
+    metadata={"version": "2.2"},
+)
+
+# Query index
+from llama_index.vector_stores.types import ExactMatchFilter, MetadataFilters
+
+query_engine_milvus23 = zcp_index.as_query_engine(
+    search_top_k=3,
+    filters=MetadataFilters(
+        filters=[
+            ExactMatchFilter(key="version", value="2.3")
+        ]  # version == "2.3"
+    ),
+    output_metadata=["version"],
+)
+
+question = "Can users delete entities by complex boolean expressions?"
+# Retrieving
+retrieval_result = query_engine_with_filters.retrieve(question)
+# Querying
+answer = query_engine_with_filters.query(question)
+```
+
+```{toctree}
+---
+caption: Examples
+maxdepth: 1
+---
+/examples/managed/zcpDemo.ipynb
 ```

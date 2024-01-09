@@ -5,7 +5,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from sqlalchemy import Table
 
-from llama_index.core import BaseQueryEngine
+from llama_index.core.base_query_engine import BaseQueryEngine
+from llama_index.core.response.schema import Response
 from llama_index.indices.struct_store.container_builder import (
     SQLContextContainerBuilder,
 )
@@ -23,7 +24,6 @@ from llama_index.prompts.default_prompt_selectors import (
 )
 from llama_index.prompts.mixin import PromptDictType, PromptMixinType
 from llama_index.prompts.prompt_type import PromptType
-from llama_index.response.schema import Response
 from llama_index.response_synthesizers import (
     get_response_synthesizer,
 )
@@ -294,6 +294,7 @@ class BaseSQLTableQueryEngine(BaseQueryEngine):
         synthesize_response: bool = True,
         response_synthesis_prompt: Optional[BasePromptTemplate] = None,
         service_context: Optional[ServiceContext] = None,
+        verbose: bool = False,
         refine_template: Optional[BasePromptTemplate] = None,
         **kwargs: Any,
     ) -> None:
@@ -312,6 +313,7 @@ class BaseSQLTableQueryEngine(BaseQueryEngine):
         _validate_prompt(self._refine_template, DEFAULT_REFINE_PROMPT_SEL)
 
         self._synthesize_response = synthesize_response
+        self._verbose = verbose
         super().__init__(self._service_context.callback_manager, **kwargs)
 
     def _get_prompts(self) -> Dict[str, Any]:
@@ -355,6 +357,7 @@ class BaseSQLTableQueryEngine(BaseQueryEngine):
                 service_context=self._service_context,
                 callback_manager=self._service_context.callback_manager,
                 text_qa_template=partial_synthesis_prompt,
+                verbose=self._verbose,
                 refine_template=partial_refine_prompt
             )
             response = response_synthesizer.synthesize(
@@ -414,6 +417,7 @@ class NLSQLTableQueryEngine(BaseSQLTableQueryEngine):
         service_context: Optional[ServiceContext] = None,
         context_str_prefix: Optional[str] = None,
         sql_only: bool = False,
+        verbose: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialize params."""
@@ -426,11 +430,13 @@ class NLSQLTableQueryEngine(BaseSQLTableQueryEngine):
             context_str_prefix=context_str_prefix,
             service_context=service_context,
             sql_only=sql_only,
+            verbose=verbose,
         )
         super().__init__(
             synthesize_response=synthesize_response,
             response_synthesis_prompt=response_synthesis_prompt,
             service_context=service_context,
+            verbose=verbose,
             refine_template=refine_template,
             **kwargs,
         )

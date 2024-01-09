@@ -5,7 +5,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
-from llama_index.agent.openai_agent import get_function_by_name
+from llama_index.agent.openai.utils import get_function_by_name
 from llama_index.agent.types import BaseAgent
 from llama_index.callbacks import (
     CallbackManager,
@@ -19,7 +19,7 @@ from llama_index.chat_engine.types import (
     ChatResponseMode,
     StreamingAgentChatResponse,
 )
-from llama_index.llms.types import ChatMessage, MessageRole
+from llama_index.core.llms.types import ChatMessage, MessageRole
 from llama_index.tools import BaseTool, ToolOutput, adapt_to_async_tool
 
 logger = logging.getLogger(__name__)

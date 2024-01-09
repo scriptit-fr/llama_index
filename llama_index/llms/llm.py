@@ -1,19 +1,38 @@
 from collections import ChainMap
-from typing import Any, List, Optional, Protocol, Sequence, runtime_checkable
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Sequence,
+    get_args,
+    runtime_checkable,
+)
 
 from llama_index.bridge.pydantic import BaseModel, Field, validator
 from llama_index.callbacks import CBEventType, EventPayload
-from llama_index.llms.base import BaseLLM
-from llama_index.llms.generic_utils import (
-    messages_to_prompt as generic_messages_to_prompt,
-)
-from llama_index.llms.types import (
+from llama_index.core.llms.types import (
     ChatMessage,
     ChatResponseAsyncGen,
     ChatResponseGen,
     CompletionResponseAsyncGen,
     CompletionResponseGen,
     MessageRole,
+)
+from llama_index.core.query_pipeline.query_component import (
+    InputKeys,
+    OutputKeys,
+    QueryComponent,
+    StringableInput,
+    validate_and_convert_stringable,
+)
+from llama_index.llms.base import BaseLLM
+from llama_index.llms.generic_utils import (
+    messages_to_prompt as generic_messages_to_prompt,
+)
+from llama_index.llms.generic_utils import (
+    prompt_to_messages,
 )
 from llama_index.prompts import BasePromptTemplate, PromptTemplate
 from llama_index.types import (
@@ -85,6 +104,10 @@ async def astream_chat_response_to_tokens(
     return gen()
 
 
+def default_completion_to_prompt(prompt: str) -> str:
+    return prompt
+
+
 class LLM(BaseLLM):
     system_prompt: Optional[str] = Field(
         default=None, description="System prompt for LLM calls."
@@ -96,7 +119,7 @@ class LLM(BaseLLM):
     )
     completion_to_prompt: CompletionToPromptType = Field(
         description="Function to convert a completion to an LLM prompt.",
-        default=lambda x: x,
+        default=default_completion_to_prompt,
         exclude=True,
     )
     output_parser: Optional[BaseOutputParser] = Field(
@@ -123,7 +146,7 @@ class LLM(BaseLLM):
     def set_completion_to_prompt(
         cls, completion_to_prompt: Optional[CompletionToPromptType]
     ) -> CompletionToPromptType:
-        return completion_to_prompt or (lambda x: x)
+        return completion_to_prompt or default_completion_to_prompt
 
     def _log_template_data(
         self, prompt: BasePromptTemplate, **prompt_args: Any
@@ -217,7 +240,7 @@ class LLM(BaseLLM):
             output = chat_response.message.content or ""
         else:
             formatted_prompt = self._get_prompt(prompt, **prompt_args)
-            response = self.complete(formatted_prompt)
+            response = self.complete(formatted_prompt, formatted=True)
             output = response.text
 
         return self._parse_output(output)
@@ -236,7 +259,7 @@ class LLM(BaseLLM):
             stream_tokens = stream_chat_response_to_tokens(chat_response)
         else:
             formatted_prompt = self._get_prompt(prompt, **prompt_args)
-            stream_response = self.stream_complete(formatted_prompt)
+            stream_response = self.stream_complete(formatted_prompt, formatted=True)
             stream_tokens = stream_completion_response_to_tokens(stream_response)
 
         if prompt.output_parser is not None or self.output_parser is not None:
@@ -258,7 +281,7 @@ class LLM(BaseLLM):
             output = chat_response.message.content or ""
         else:
             formatted_prompt = self._get_prompt(prompt, **prompt_args)
-            response = await self.acomplete(formatted_prompt)
+            response = await self.acomplete(formatted_prompt, formatted=True)
             output = response.text
 
         return self._parse_output(output)
@@ -277,7 +300,9 @@ class LLM(BaseLLM):
             stream_tokens = await astream_chat_response_to_tokens(chat_response)
         else:
             formatted_prompt = self._get_prompt(prompt, **prompt_args)
-            stream_response = await self.astream_complete(formatted_prompt)
+            stream_response = await self.astream_complete(
+                formatted_prompt, formatted=True
+            )
             stream_tokens = await astream_completion_response_to_tokens(stream_response)
 
         if prompt.output_parser is not None or self.output_parser is not None:
@@ -310,3 +335,127 @@ class LLM(BaseLLM):
                 *messages,
             ]
         return messages
+
+    def _as_query_component(self, **kwargs: Any) -> QueryComponent:
+        """Return query component."""
+        if self.metadata.is_chat_model:
+            return LLMChatComponent(llm=self, **kwargs)
+        else:
+            return LLMCompleteComponent(llm=self, **kwargs)
+
+
+class BaseLLMComponent(QueryComponent):
+    """Base LLM component."""
+
+    llm: LLM = Field(..., description="LLM")
+    streaming: bool = Field(default=False, description="Streaming mode")
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    def set_callback_manager(self, callback_manager: Any) -> None:
+        """Set callback manager."""
+        self.llm.callback_manager = callback_manager
+
+
+class LLMCompleteComponent(BaseLLMComponent):
+    """LLM completion component."""
+
+    def _validate_component_inputs(self, input: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate component inputs during run_component."""
+        if "prompt" not in input:
+            raise ValueError("Prompt must be in input dict.")
+
+        # do special check to see if prompt is a list of chat messages
+        if isinstance(input["prompt"], get_args(List[ChatMessage])):
+            input["prompt"] = self.llm.messages_to_prompt(input["prompt"])
+            input["prompt"] = validate_and_convert_stringable(input["prompt"])
+        else:
+            input["prompt"] = validate_and_convert_stringable(input["prompt"])
+            input["prompt"] = self.llm.completion_to_prompt(input["prompt"])
+
+        return input
+
+    def _run_component(self, **kwargs: Any) -> Any:
+        """Run component."""
+        # TODO: support only complete for now
+        # non-trivial to figure how to support chat/complete/etc.
+        prompt = kwargs["prompt"]
+        # ignore all other kwargs for now
+        if self.streaming:
+            response = self.llm.stream_complete(prompt, formatted=True)
+        else:
+            response = self.llm.complete(prompt, formatted=True)
+        return {"output": response}
+
+    async def _arun_component(self, **kwargs: Any) -> Any:
+        """Run component."""
+        # TODO: support only complete for now
+        # non-trivial to figure how to support chat/complete/etc.
+        prompt = kwargs["prompt"]
+        # ignore all other kwargs for now
+        response = await self.llm.acomplete(prompt, formatted=True)
+        return {"output": response}
+
+    @property
+    def input_keys(self) -> InputKeys:
+        """Input keys."""
+        # TODO: support only complete for now
+        return InputKeys.from_keys({"prompt"})
+
+    @property
+    def output_keys(self) -> OutputKeys:
+        """Output keys."""
+        return OutputKeys.from_keys({"output"})
+
+
+class LLMChatComponent(BaseLLMComponent):
+    """LLM chat component."""
+
+    def _validate_component_inputs(self, input: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate component inputs during run_component."""
+        if "messages" not in input:
+            raise ValueError("Messages must be in input dict.")
+
+        # if `messages` is a string, convert to a list of chat message
+        if isinstance(input["messages"], get_args(StringableInput)):
+            input["messages"] = validate_and_convert_stringable(input["messages"])
+            input["messages"] = prompt_to_messages(str(input["messages"]))
+
+        for message in input["messages"]:
+            if not isinstance(message, ChatMessage):
+                raise ValueError("Messages must be a list of ChatMessage")
+        return input
+
+    def _run_component(self, **kwargs: Any) -> Any:
+        """Run component."""
+        # TODO: support only complete for now
+        # non-trivial to figure how to support chat/complete/etc.
+        messages = kwargs["messages"]
+        if self.streaming:
+            response = self.llm.stream_chat(messages)
+        else:
+            response = self.llm.chat(messages)
+        return {"output": response}
+
+    async def _arun_component(self, **kwargs: Any) -> Any:
+        """Run component."""
+        # TODO: support only complete for now
+        # non-trivial to figure how to support chat/complete/etc.
+        messages = kwargs["messages"]
+        if self.streaming:
+            response = await self.llm.astream_chat(messages)
+        else:
+            response = await self.llm.achat(messages)
+        return {"output": response}
+
+    @property
+    def input_keys(self) -> InputKeys:
+        """Input keys."""
+        # TODO: support only complete for now
+        return InputKeys.from_keys({"messages"})
+
+    @property
+    def output_keys(self) -> OutputKeys:
+        """Output keys."""
+        return OutputKeys.from_keys({"output"})

@@ -44,6 +44,8 @@ class FlagEmbeddingReranker(BaseNodePostprocessor):
     ) -> List[NodeWithScore]:
         if query_bundle is None:
             raise ValueError("Missing query bundle in extra info.")
+        if len(nodes) == 0:
+            return []
 
         query_and_nodes = [
             (
@@ -63,6 +65,10 @@ class FlagEmbeddingReranker(BaseNodePostprocessor):
             },
         ) as event:
             scores = self._model.compute_score(query_and_nodes)
+
+            # a single node passed into compute_score returns a float
+            if isinstance(scores, float):
+                scores = [scores]
 
             assert len(scores) == len(nodes)
 

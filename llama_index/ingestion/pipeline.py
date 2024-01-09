@@ -120,6 +120,7 @@ class DocstoreStrategy(str, Enum):
 
     UPSERTS = "upserts"
     DUPLICATES_ONLY = "duplicates_only"
+    UPSERTS_AND_DELETE = "upserts_and_delete"
 
 
 class IngestionPipeline(BaseModel):
@@ -159,6 +160,7 @@ class IngestionPipeline(BaseModel):
         cache: Optional[IngestionCache] = None,
         docstore: Optional[BaseDocumentStore] = None,
         docstore_strategy: DocstoreStrategy = DocstoreStrategy.UPSERTS,
+        disable_cache: bool = False,
     ) -> None:
         if transformations is None:
             transformations = self._get_default_transformations()
@@ -171,6 +173,7 @@ class IngestionPipeline(BaseModel):
             cache=cache or IngestionCache(),
             docstore=docstore,
             docstore_strategy=docstore_strategy,
+            disable_cache=disable_cache,
         )
 
     @classmethod
@@ -182,6 +185,7 @@ class IngestionPipeline(BaseModel):
         vector_store: Optional[BasePydanticVectorStore] = None,
         cache: Optional[IngestionCache] = None,
         docstore: Optional[BaseDocumentStore] = None,
+        disable_cache: bool = False,
     ) -> "IngestionPipeline":
         transformations = [
             *service_context.transformations,
@@ -195,6 +199,7 @@ class IngestionPipeline(BaseModel):
             vector_store=vector_store,
             cache=cache,
             docstore=docstore,
+            disable_cache=disable_cache,
         )
 
     def persist(
@@ -266,7 +271,11 @@ class IngestionPipeline(BaseModel):
 
         return input_nodes
 
-    def _handle_duplicates(self, nodes: List[BaseNode]) -> List[BaseNode]:
+    def _handle_duplicates(
+        self,
+        nodes: List[BaseNode],
+        store_doc_text: bool = True,
+    ) -> List[BaseNode]:
         """Handle docstore duplicates by checking all hashes."""
         assert self.docstore is not None
 
@@ -275,24 +284,31 @@ class IngestionPipeline(BaseModel):
         nodes_to_run = []
         for node in nodes:
             if node.hash not in existing_hashes and node.hash not in current_hashes:
-                self.docstore.add_documents([node])
                 self.docstore.set_document_hash(node.id_, node.hash)
                 nodes_to_run.append(node)
                 current_hashes.append(node.hash)
+
+        self.docstore.add_documents(nodes_to_run, store_text=store_doc_text)
+
         return nodes_to_run
 
-    def _handle_upserts(self, nodes: List[BaseNode]) -> List[BaseNode]:
+    def _handle_upserts(
+        self,
+        nodes: List[BaseNode],
+        store_doc_text: bool = True,
+    ) -> List[BaseNode]:
         """Handle docstore upserts by checking hashes and ids."""
         assert self.docstore is not None
 
+        existing_doc_ids_before = set(self.docstore.get_all_document_hashes().values())
+        doc_ids_from_nodes = set()
         deduped_nodes_to_run = {}
         for node in nodes:
             ref_doc_id = node.ref_doc_id if node.ref_doc_id else node.id_
-
+            doc_ids_from_nodes.add(ref_doc_id)
             existing_hash = self.docstore.get_document_hash(ref_doc_id)
             if not existing_hash:
                 # document doesn't exist, so add it
-                self.docstore.add_documents([node])
                 self.docstore.set_document_hash(ref_doc_id, node.hash)
                 deduped_nodes_to_run[ref_doc_id] = node
             elif existing_hash and existing_hash != node.hash:
@@ -301,14 +317,25 @@ class IngestionPipeline(BaseModel):
                 if self.vector_store is not None:
                     self.vector_store.delete(ref_doc_id)
 
-                self.docstore.add_documents([node])
                 self.docstore.set_document_hash(ref_doc_id, node.hash)
 
                 deduped_nodes_to_run[ref_doc_id] = node
             else:
                 continue  # document exists and is unchanged, so skip it
 
-        return list(deduped_nodes_to_run.values())
+        if self.docstore_strategy == DocstoreStrategy.UPSERTS_AND_DELETE:
+            # Identify missing docs and delete them from docstore and vector store
+            doc_ids_to_delete = existing_doc_ids_before - doc_ids_from_nodes
+            for ref_doc_id in doc_ids_to_delete:
+                self.docstore.delete_document(ref_doc_id)
+
+                if self.vector_store is not None:
+                    self.vector_store.delete(ref_doc_id)
+
+        nodes_to_run = list(deduped_nodes_to_run.values())
+        self.docstore.add_documents(nodes_to_run, store_text=store_doc_text)
+
+        return nodes_to_run
 
     def run(
         self,
@@ -317,16 +344,24 @@ class IngestionPipeline(BaseModel):
         nodes: Optional[List[BaseNode]] = None,
         cache_collection: Optional[str] = None,
         in_place: bool = True,
+        store_doc_text: bool = True,
         **kwargs: Any,
     ) -> Sequence[BaseNode]:
         input_nodes = self._prepare_inputs(documents, nodes)
 
         # check if we need to dedup
         if self.docstore is not None and self.vector_store is not None:
-            if self.docstore_strategy == DocstoreStrategy.UPSERTS:
-                nodes_to_run = self._handle_upserts(input_nodes)
+            if self.docstore_strategy in (
+                DocstoreStrategy.UPSERTS,
+                DocstoreStrategy.UPSERTS_AND_DELETE,
+            ):
+                nodes_to_run = self._handle_upserts(
+                    input_nodes, store_doc_text=store_doc_text
+                )
             elif self.docstore_strategy == DocstoreStrategy.DUPLICATES_ONLY:
-                nodes_to_run = self._handle_duplicates(input_nodes)
+                nodes_to_run = self._handle_duplicates(
+                    input_nodes, store_doc_text=store_doc_text
+                )
             else:
                 raise ValueError(f"Invalid docstore strategy: {self.docstore_strategy}")
         elif self.docstore is not None and self.vector_store is None:
@@ -336,7 +371,16 @@ class IngestionPipeline(BaseModel):
                     "Switching to duplicates_only strategy."
                 )
                 self.docstore_strategy = DocstoreStrategy.DUPLICATES_ONLY
-            nodes_to_run = self._handle_duplicates(input_nodes)
+            elif self.docstore_strategy == DocstoreStrategy.UPSERTS_AND_DELETE:
+                print(
+                    "Docstore strategy set to upserts and delete, but no vector store. "
+                    "Switching to duplicates_only strategy."
+                )
+                self.docstore_strategy = DocstoreStrategy.DUPLICATES_ONLY
+            nodes_to_run = self._handle_duplicates(
+                input_nodes, store_doc_text=store_doc_text
+            )
+
         else:
             nodes_to_run = input_nodes
 
@@ -362,12 +406,48 @@ class IngestionPipeline(BaseModel):
         nodes: Optional[List[BaseNode]] = None,
         cache_collection: Optional[str] = None,
         in_place: bool = True,
+        store_doc_text: bool = True,
         **kwargs: Any,
     ) -> Sequence[BaseNode]:
         input_nodes = self._prepare_inputs(documents, nodes)
 
+        # check if we need to dedup
+        if self.docstore is not None and self.vector_store is not None:
+            if self.docstore_strategy in (
+                DocstoreStrategy.UPSERTS,
+                DocstoreStrategy.UPSERTS_AND_DELETE,
+            ):
+                nodes_to_run = self._handle_upserts(
+                    input_nodes, store_doc_text=store_doc_text
+                )
+            elif self.docstore_strategy == DocstoreStrategy.DUPLICATES_ONLY:
+                nodes_to_run = self._handle_duplicates(
+                    input_nodes, store_doc_text=store_doc_text
+                )
+            else:
+                raise ValueError(f"Invalid docstore strategy: {self.docstore_strategy}")
+        elif self.docstore is not None and self.vector_store is None:
+            if self.docstore_strategy == DocstoreStrategy.UPSERTS:
+                print(
+                    "Docstore strategy set to upserts, but no vector store. "
+                    "Switching to duplicates_only strategy."
+                )
+                self.docstore_strategy = DocstoreStrategy.DUPLICATES_ONLY
+            elif self.docstore_strategy == DocstoreStrategy.UPSERTS_AND_DELETE:
+                print(
+                    "Docstore strategy set to upserts and delete, but no vector store. "
+                    "Switching to duplicates_only strategy."
+                )
+                self.docstore_strategy = DocstoreStrategy.DUPLICATES_ONLY
+            nodes_to_run = self._handle_duplicates(
+                input_nodes, store_doc_text=store_doc_text
+            )
+
+        else:
+            nodes_to_run = input_nodes
+
         nodes = await arun_transformations(
-            input_nodes,
+            nodes_to_run,
             self.transformations,
             show_progress=show_progress,
             cache=self.cache if not self.disable_cache else None,

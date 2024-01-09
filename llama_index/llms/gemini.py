@@ -6,24 +6,25 @@ from typing import Any, Dict, Optional, Sequence
 from llama_index.bridge.pydantic import Field, PrivateAttr
 from llama_index.callbacks import CallbackManager
 from llama_index.constants import DEFAULT_NUM_OUTPUTS, DEFAULT_TEMPERATURE
-from llama_index.llms.base import (
-    llm_chat_callback,
-    llm_completion_callback,
-)
-from llama_index.llms.custom import CustomLLM
-from llama_index.llms.gemini_utils import (
-    chat_from_gemini_response,
-    chat_message_to_gemini,
-    completion_from_gemini_response,
-    merge_neighboring_same_role_messages,
-)
-from llama_index.llms.types import (
+from llama_index.core.llms.types import (
     ChatMessage,
     ChatResponse,
     ChatResponseGen,
     CompletionResponse,
     CompletionResponseGen,
     LLMMetadata,
+)
+from llama_index.llms.base import (
+    llm_chat_callback,
+    llm_completion_callback,
+)
+from llama_index.llms.custom import CustomLLM
+from llama_index.llms.gemini_utils import (
+    ROLES_FROM_GEMINI,
+    chat_from_gemini_response,
+    chat_message_to_gemini,
+    completion_from_gemini_response,
+    merge_neighboring_same_role_messages,
 )
 
 if typing.TYPE_CHECKING:
@@ -137,11 +138,15 @@ class Gemini(CustomLLM):
         )
 
     @llm_completion_callback()
-    def complete(self, prompt: str, **kwargs: Any) -> CompletionResponse:
+    def complete(
+        self, prompt: str, formatted: bool = False, **kwargs: Any
+    ) -> CompletionResponse:
         result = self._model.generate_content(prompt, **kwargs)
         return completion_from_gemini_response(result)
 
-    def stream_complete(self, prompt: str, **kwargs: Any) -> CompletionResponseGen:
+    def stream_complete(
+        self, prompt: str, formatted: bool = False, **kwargs: Any
+    ) -> CompletionResponseGen:
         it = self._model.generate_content(prompt, stream=True, **kwargs)
         yield from map(completion_from_gemini_response, it)
 
@@ -159,5 +164,25 @@ class Gemini(CustomLLM):
         merged_messages = merge_neighboring_same_role_messages(messages)
         *history, next_msg = map(chat_message_to_gemini, merged_messages)
         chat = self._model.start_chat(history=history)
-        it = chat.send_message(next_msg, stream=True)
-        yield from map(chat_from_gemini_response, it)
+        response = chat.send_message(next_msg, stream=True)
+
+        def gen() -> ChatResponseGen:
+            content = ""
+            for r in response:
+                top_candidate = r.candidates[0]
+                content_delta = top_candidate.content.parts[0].text
+                role = ROLES_FROM_GEMINI[top_candidate.content.role]
+                raw = {
+                    **(type(top_candidate).to_dict(top_candidate)),
+                    **(
+                        type(response.prompt_feedback).to_dict(response.prompt_feedback)
+                    ),
+                }
+                content += content_delta
+                yield ChatResponse(
+                    message=ChatMessage(role=role, content=content),
+                    delta=content_delta,
+                    raw=raw,
+                )
+
+        return gen()

@@ -1,10 +1,191 @@
 # ChangeLog
 
-## Unreleased
+## [0.9.27] - 2024-01-08
+
+### New Features
+
+- add query pipeline (#9908)
+- Feature: Azure Multi Modal (fixes: #9471) (#9843)
+- add postgres docker (#9906)
+- Vectara auto_retriever (#9865)
+- Redis Chat Store support (#9880)
+- move more classes to core (#9871)
+
+### Bug Fixes / Nits / Smaller Features
+
+- Propagate `tool_choice` flag to downstream APIs (#9901)
+- filter out negative indexes from faiss query (#9907)
+- added NE filter for qdrant payloads (#9897)
+- Fix incorrect id assignment in MyScale query result (#9900)
+- Qdrant Text Match Filter (#9895)
+- Fusion top k for hybrid search (#9894)
+- Fix (#9867) sync_to_async to avoid blocking during asynchronous calls (#9869)
+- A single node passed into compute_scores returns as a float (#9866)
+- Remove extra linting steps (#9878)
+- add vectara links (#9886)
+
+## [0.9.26] - 2024-01-05
+
+### New Features
+
+- Added a `BaseChatStore` and `SimpleChatStore` abstraction for dedicated chat memory storage (#9863)
+- Enable custom `tree_sitter` parser to be passed into `CodeSplitter` (#9845)
+- Created a `BaseAutoRetriever` base class, to allow other retrievers to extend to auto modes (#9846)
+- Added support for Nvidia Triton LLM (#9488)
+- Added `DeepEval` one-click observability (#9801)
+
+### Bug Fixes / Nits
+
+- Updated the guidance integration to work with the latest version (#9830)
+- Made text storage optional for doctores/ingestion pipeline (#9847)
+- Added missing `sphinx-automodapi` dependency for docs (#9852)
+- Return actual node ids in weaviate query results (#9854)
+- Added prompt formatting to LangChainLLM (#9844)
+
+## [0.9.25] - 2024-01-03
+
+### New Features
+
+- Added concurrancy limits for dataset generation (#9779)
+- New `deepeval` one-click observability handler (#9801)
+- Added jaguar vector store (#9754)
+- Add beta multimodal ReAct agent (#9807)
+
+### Bug Fixes / Nits
+
+- Changed default batch size for OpenAI embeddings to 100 (#9805)
+- Use batch size properly for qdrant upserts (#9814)
+- `_verify_source_safety` uses AST, not regexes, for proper safety checks (#9789)
+- use provided LLM in element node parsers (#9776)
+- updated legacy vectordb loading function to be more robust (#9773)
+- Use provided http client in AzureOpenAI (#9772)
+
+## [0.9.24] - 2023-12-30
+
+### New Features
+
+- Add reranker for BEIR evaluation (#9743)
+- Add Pathway integration. (#9719)
+- custom agents implementation + notebook (#9746)
+
+### Bug Fixes / Nits
+
+- fix beam search for vllm: add missing parameter (#9741)
+- Fix alpha for hrbrid search (#9742)
+- fix token counter (#9744)
+- BM25 tokenizer lowercase (#9745)
+
+## [0.9.23] - 2023-12-28
+
+### Bug Fixes / Nits
+
+- docs: fixes qdrant_hybrid.ipynb typos (#9729)
+- make llm completion program more general (#9731)
+- Refactor MM Vector store and Index for empty collection (#9717)
+- Adding IF statement to check for Schema using "Select" (#9712)
+- allow skipping module loading in `download_module` and `download_llama_pack` (#9734)
+
+## [0.9.22] - 2023-12-26
+
+### New Features
+
+- Added `.iter_data()` method to `SimpleDirectoryReader` (#9658)
+- Added async support to `Ollama` LLM (#9689)
+- Expanding pinecone filter support for `in` and `not in` (#9683)
+
+### Bug Fixes / Nits
+
+- Improve BM25Retriever performance (#9675)
+- Improved qdrant hybrid search error handling (#9707)
+- Fixed `None` handling in `ChromaVectorStore` (#9697)
+- Fixed postgres schema creation if not existing (#9712)
+
+## [0.9.21] - 2023-12-23
+
+### New Features
+
+- Added zilliz cloud as a managed index (#9605)
+
+### Bug Fixes / Nits
+
+- Bedrock client and LLM fixes (#9671, #9646)
+
+## [0.9.20] - 2023-12-21
+
+### New Features
+
+- Added `insert_batch_size` to limit number of embeddings held in memory when creating an index, defaults to 2048 (#9630)
+- Improve auto-retrieval (#9647)
+- Configurable Node ID Generating Function (#9574)
+- Introduced action input parser (#9575)
+- qdrant sparse vector support (#9644)
+- Introduced upserts and delete in ingestion pipeline (#9643)
+- Add Zilliz Cloud Pipeline as a Managed Index (#9605)
+- Add support for Google Gemini models via VertexAI (#9624)
+- support allowing additional metadata filters on autoretriever (#9662)
+
+### Bug Fixes / Nits
+
+- Fix pip install commands in LM Format Enforcer notebooks (#9648)
+- Fixing some more links and documentations (#9633)
+- some bedrock nits and fixes (#9646)
+
+## [0.9.19] - 2023-12-20
+
+### New Features
+
+- new llama datasets `LabelledEvaluatorDataset` & `LabelledPairwiseEvaluatorDataset` (#9531)
+
+## [0.9.18] - 2023-12-20
+
+### New Features
+
+- multi-doc auto-retrieval guide (#9631)
+
+### Bug Fixes / Nits
+
+- fix(vllm): make Vllm's 'complete' method behave the same as other LLM class (#9634)
+- FIx Doc links and other documentation issue (#9632)
+
+## [0.9.17] - 2023-12-19
+
+### New Features
+
+- [example] adding user feedback (#9601)
+- FEATURE: Cohere ReRank Relevancy Metric for Retrieval Eval (#9495)
+
+### Bug Fixes / Nits
+
+- Fix Gemini Chat Mode (#9599)
+- Fixed `types-protobuf` from being a primary dependency (#9595)
+- Adding an optional auth token to the TextEmbeddingInference class (#9606)
+- fix: out of index get latest tool call (#9608)
+- fix(azure_openai.py): add missing return to subclass override (#9598)
+- fix mix up b/w 'formatted' and 'format' params for ollama api call (#9594)
+
+## [0.9.16] - 2023-12-18
+
+### New Features
+
+- agent refactor: step-wise execution (#9584)
+- Add OpenRouter, with Mixtral demo (#9464)
+- Add hybrid search to neo4j vector store (#9530)
+- Add support for auth service accounts for Google Semantic Retriever (#9545)
 
 ### Bug Fixes / Nits
 
 - Fixed missing `default=None` for `LLM.system_prompt` (#9504)
+- Fix #9580 : Incorporate metadata properly (#9582)
+- Integrations: Gradient[Embeddings,LLM] - sdk-upgrade (#9528)
+- Add mixtral 8x7b model to anyscale available models (#9573)
+- Gemini Model Checks (#9563)
+- Update OpenAI fine-tuning with latest changes (#9564)
+- fix/Reintroduce `WHERE` filter to the Sparse Query for PgVectorStore (#9529)
+- Update Ollama API to ollama v0.1.16 (#9558)
+- ollama: strip invalid `formatted` option (#9555)
+- add a device in optimum push #9541 (#9554)
+- Title vs content difference for Gemini Embedding (#9547)
+- fix pydantic fields to float (#9542)
 
 ## [0.9.15] - 2023-12-13
 
@@ -172,7 +353,7 @@
 ### Bug Fixes / Nits
 
 - Fixed bug in formatting chat prompt templates when estimating chunk sizes (#9025)
-- Sandboxed Pandas execution, remidiate CVE-2023-39662 (#8890)
+- Sandboxed Pandas execution, remediate CVE-2023-39662 (#8890)
 - Restored `mypy` for Python 3.8 (#9031)
 - Loosened `dataclasses-json` version range,
   and removes unnecessary `jinja2` extra from `pandas` (#9042)
@@ -934,7 +1115,7 @@
 ### Breaking Changes
 
 - Update milvus vector store to support filters and dynamic schemas (#7286)
-  - See the [updated notebook](https://gpt-index.readthedocs.io/en/stable/examples/vector_stores/MilvusIndexDemo.html) for usage
+  - See the [updated notebook](https://docs.llamaindex.ai/en/stable/examples/vector_stores/MilvusIndexDemo.html) for usage
 - Added NLTK to core dependencies to support the default sentence splitter (#7606)
 
 ## [0.8.22] - 2023-09-07
