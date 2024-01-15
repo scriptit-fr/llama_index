@@ -296,6 +296,7 @@ class BaseSQLTableQueryEngine(BaseQueryEngine):
         service_context: Optional[ServiceContext] = None,
         verbose: bool = False,
         refine_template: Optional[BasePromptTemplate] = None,
+        skip_table_verification: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialize params."""
@@ -314,6 +315,7 @@ class BaseSQLTableQueryEngine(BaseQueryEngine):
 
         self._synthesize_response = synthesize_response
         self._verbose = verbose
+        self._skip_table_verification = skip_table_verification
         super().__init__(self._service_context.callback_manager, **kwargs)
 
     def _get_prompts(self) -> Dict[str, Any]:
@@ -342,7 +344,7 @@ class BaseSQLTableQueryEngine(BaseQueryEngine):
     def _query(self, query_bundle: QueryBundle) -> Response:
         """Answer a query."""
         retrieved_nodes, metadata = self.sql_retriever.retrieve_with_metadata(
-            query_bundle
+            query_bundle, self._skip_table_verification
         )
 
         sql_query_str = metadata["sql_query"]
@@ -418,6 +420,7 @@ class NLSQLTableQueryEngine(BaseSQLTableQueryEngine):
         context_str_prefix: Optional[str] = None,
         sql_only: bool = False,
         verbose: bool = False,
+        skip_table_verification: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialize params."""
@@ -438,6 +441,7 @@ class NLSQLTableQueryEngine(BaseSQLTableQueryEngine):
             service_context=service_context,
             verbose=verbose,
             refine_template=refine_template,
+            skip_table_verification = skip_table_verification,
             **kwargs,
         )
 
