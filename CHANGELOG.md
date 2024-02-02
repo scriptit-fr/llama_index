@@ -1,5 +1,207 @@
 # ChangeLog
 
+## [0.9.41] - 2024-02-01
+
+### New Features
+
+- Nomic Embedding (#10388)
+- Dashvector support sparse vector (#10386)
+- Table QA with MarkDownParser and Benchmarking (#10382)
+- Simple web page reader (#10395)
+
+### Bug Fixes / Nits
+
+- fix full node content in KeywordExtractor (#10398)
+
+## [0.9.40] - 2024-01-30
+
+### New Features
+
+- Improve and fix bugs for MarkdownElementNodeParser (#10340)
+- Fixed and improve Perplexity support for new models (#10319)
+- Ensure system_prompt is passed to Perplexity LLM (#10326)
+- Extended BaseRetrievalEvaluator to include an optional PostProcessor (#10321)
+
+## [0.9.39] - 2024-01-26
+
+### New Features
+
+- Support for new GPT Turbo Models (#10291)
+- Support Multiple docs for Sentence Transformer Fine tuning(#10297)
+
+### Bug Fixes / Nits
+
+- Marvin imports fixed (#9864)
+
+## [0.9.38] - 2024-01-25
+
+### New Features
+
+- Support for new OpenAI v3 embedding models (#10279)
+
+### Bug Fixes / Nits
+
+- Extra checks on sparse embeddings for qdrant (#10275)
+
+## [0.9.37] - 2024-01-24
+
+### New Features
+
+- Added a RAG CLI utility (#10193)
+- Added a textai vector store (#10240)
+- Added a Postgresql based docstore and index store (#10233)
+- specify tool spec in tool specs (#10263)
+
+### Bug Fixes / Nits
+
+- Fixed serialization error in ollama chat (#10230)
+- Added missing fields to `SentenceTransformerRerank` (#10225)
+- Fixed title extraction (#10209, #10226)
+- nit: make chainable output parser more exposed in library/docs (#10262)
+- :bug: summary index not carrying over excluded metadata keys (#10259)
+
+## [0.9.36] - 2024-01-23
+
+### New Features
+
+- Added support for `SageMakerEmbedding` (#10207)
+
+### Bug Fixes / Nits
+
+- Fix duplicated `file_id` on openai assistant (#10223)
+- Fix circular dependencies for programs (#10222)
+- Run `TitleExtractor` on groups of nodes from the same parent document (#10209)
+- Improve vectara auto-retrieval (#10195)
+
+## [0.9.35] - 2024-01-22
+
+### New Features
+
+- `beautifulsoup4` dependency to new optional extra `html` (#10156)
+- make `BaseNode.hash` an `@property` (#10163)
+- Neutrino (#10150)
+- feat: JSONalyze Query Engine (#10067)
+- [wip] add custom hybrid retriever notebook (#10164)
+- add from_collection method to ChromaVectorStore class (#10167)
+- CLI experiment v0: ask (#10168)
+- make react agent prompts more editable (#10154)
+- Add agent query pipeline (#10180)
+
+### Bug Fixes / Nits
+
+- Update supabase vecs metadata filter function to support multiple fields (#10133)
+- Bugfix/code improvement for LanceDB integration (#10144)
+- `beautifulsoup4` optional dependency (#10156)
+- Fix qdrant aquery hybrid search (#10159)
+- make hash a @property (#10163)
+- fix: bug on poetry install of llama-index[postgres] (#10171)
+- [doc] update jaguar vector store documentation (#10179)
+- Remove use of not-launched finish_message (#10188)
+- Updates to Lantern vector stores docs (#10192)
+- fix typo in multi_document_agents.ipynb (#10196)
+
+## [0.9.34] - 2024-01-19
+
+### New Features
+
+- Added SageMakerEndpointLLM (#10140)
+- Added support for Qdrant filters (#10136)
+
+### Bug Fixes / Nits
+
+- Update bedrock utils for Claude 2:1 (#10139)
+- BugFix: deadlocks using multiprocessing (#10125)
+
+## [0.9.33] - 2024-01-17
+
+### New Features
+
+- Added RankGPT as a postprocessor (#10054)
+- Ensure backwards compatibility with new Pinecone client version bifucation (#9995)
+- Recursive retriever all the things (#10019)
+
+### Bug Fixes / Nits
+
+- BugFix: When using markdown element parser on a table containing comma (#9926)
+- extend auto-retrieval notebook (#10065)
+- Updated the Attribute name in llm_generators (#10070)
+- jaguar vector store add text_tag to add_kwargs in add() (#10057)
+
+## [0.9.32] - 2024-01-16
+
+### New Features
+
+- added query-time row retrieval + fix nits with query pipeline over structured data (#10061)
+- ReActive Agents w/ Context + updated stale link (#10058)
+
+## [0.9.31] - 2024-01-15
+
+### New Features
+
+- Added selectors and routers to query pipeline (#9979)
+- Added sparse-only search to qdrant vector store (#10041)
+- Added Tonic evaluators (#10000)
+- Adding async support to firestore docstore (#9983)
+- Implement mongodb docstore `put_all` method (#10014)
+
+### Bug Fixes / Nits
+
+- Properly truncate sql results based on `max_string_length` (#10015)
+- Fixed `node.resolve_image()` for base64 strings (#10026)
+- Fixed cohere system prompt role (#10020)
+- Remove redundant token counting operation in SentenceSplitter (#10053)
+
+## [0.9.30] - 2024-01-11
+
+### New Features
+
+- Implements a Node Parser using embeddings for Semantic Splitting (#9988)
+- Add Anyscale Embedding model support (#9470)
+
+### Bug Fixes / Nits
+
+- nit: fix pandas get prompt (#10001)
+- Fix: Token counting bug (#9912)
+- Bump jinja2 from 3.1.2 to 3.1.3 (#9997)
+- Fix corner case for qdrant hybrid search (#9993)
+- Bugfix: sphinx generation errors (#9944)
+- Fix: `language` used before assignment in `CodeSplitter` (#9987)
+- fix inconsistent name "text_parser" in section "Use a Text Splitter… (#9980)
+- :bug: fixing batch size (#9982)
+- add auto-async execution to query pipelines (#9967)
+- :bug: fixing init (#9977)
+- Parallel Loading with SimpleDirectoryReader (#9965)
+- do not force delete an index in milvus (#9974)
+
+## [0.9.29] - 2024-01-10
+
+### New Features
+
+- Added support for together.ai models (#9962)
+- Added support for batch redis/firestore kvstores, async firestore kvstore (#9827)
+- Parallelize `IngestionPipeline.run()` (#9920)
+- Added new query pipeline components: function, argpack, kwargpack (#9952)
+
+### Bug Fixes / Nits
+
+- Updated optional langchain imports to avoid warnings (#9964)
+- Raise an error if empty nodes are embedded (#9953)
+
+## [0.9.28] - 2024-01-09
+
+### New Features
+
+- Added support for Nvidia TenorRT LLM (#9842)
+- Allow `tool_choice` to be set during agent construction (#9924)
+- Added streaming support for `QueryPipeline` (#9919)
+
+### Bug Fixes / Nits
+
+- Set consistent doc-ids for llama-index readers (#9923, #9916)
+- Remove unneeded model inputs for HuggingFaceEmbedding (#9922)
+- Propagate `tool_choice` flag to downstream APIs (#9901)
+- Add `chat_store_key` to chat memory `from_defaults()` (#9928)
+
 ## [0.9.27] - 2024-01-08
 
 ### New Features

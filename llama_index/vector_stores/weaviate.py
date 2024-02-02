@@ -1,6 +1,6 @@
 """Weaviate Vector store index.
 
-An index that that is built on top of an existing vector store.
+An index that is built on top of an existing vector store.
 
 """
 
@@ -74,6 +74,9 @@ def _to_weaviate_filter(standard_filters: MetadataFilters) -> Dict[str, Any]:
             if isinstance(filter.value, float):
                 value_type = "valueNumber"
             elif isinstance(filter.value, int):
+                value_type = "valueNumber"
+            elif isinstance(filter.value, str) and filter.value.isnumeric():
+                filter.value = float(filter.value)
                 value_type = "valueNumber"
             filters_list.append(
                 {

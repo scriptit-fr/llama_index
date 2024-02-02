@@ -87,6 +87,7 @@ class TokenTextSplitter(MetadataAwareTextSplitter):
         callback_manager: Optional[CallbackManager] = None,
         include_metadata: bool = True,
         include_prev_next_rel: bool = True,
+        id_func: Optional[Callable[[int, Document], str]] = None,
     ) -> "TokenTextSplitter":
         """Initialize with default parameters."""
         callback_manager = callback_manager or CallbackManager([])
@@ -98,6 +99,7 @@ class TokenTextSplitter(MetadataAwareTextSplitter):
             callback_manager=callback_manager,
             include_metadata=include_metadata,
             include_prev_next_rel=include_prev_next_rel,
+            id_func=id_func,
         )
 
     @classmethod
@@ -108,7 +110,6 @@ class TokenTextSplitter(MetadataAwareTextSplitter):
         """Split text into chunks, reserving space required for metadata str."""
         metadata_len = len(self._tokenizer(metadata_str)) + DEFAULT_METADATA_FORMAT_LEN
         effective_chunk_size = self.chunk_size - metadata_len
-        print(effective_chunk_size, flush=True)
         if effective_chunk_size <= 0:
             raise ValueError(
                 f"Metadata length ({metadata_len}) is longer than chunk size "

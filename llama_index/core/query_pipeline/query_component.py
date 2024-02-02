@@ -1,7 +1,7 @@
 """Pipeline schema."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generator, Optional, Set, Union, cast, get_args
+from typing import Any, Dict, Generator, List, Optional, Set, Union, cast, get_args
 
 from llama_index.bridge.pydantic import BaseModel, Field
 from llama_index.callbacks.base import CallbackManager
@@ -10,11 +10,18 @@ from llama_index.core.llms.types import (
     CompletionResponse,
 )
 from llama_index.core.response.schema import Response
-from llama_index.schema import QueryBundle
+from llama_index.schema import NodeWithScore, QueryBundle, TextNode
 
 ## Define common types used throughout these components
 StringableInput = Union[
-    CompletionResponse, ChatResponse, str, QueryBundle, Response, Generator
+    CompletionResponse,
+    ChatResponse,
+    str,
+    QueryBundle,
+    Response,
+    Generator,
+    NodeWithScore,
+    TextNode,
 ]
 
 
@@ -31,6 +38,15 @@ def validate_and_convert_stringable(input: Any) -> str:
             else:
                 new_input += str(elem)
         return new_input
+    elif isinstance(input, List):
+        # iterate through each element, make sure is stringable
+        # do this recursively
+        new_input_list = []
+        for elem in input:
+            new_input_list.append(validate_and_convert_stringable(elem))
+        return str(new_input_list)
+    elif isinstance(input, ChatResponse):
+        return input.message.content or ""
     elif isinstance(input, get_args(StringableInput)):
         return str(input)
     else:
@@ -197,6 +213,17 @@ class QueryComponent(BaseModel):
     def output_keys(self) -> OutputKeys:
         """Output keys."""
 
+    @property
+    def sub_query_components(self) -> List["QueryComponent"]:
+        """Get sub query components.
+
+        Certain query components may have sub query components, e.g. a
+        query pipeline will have sub query components, and so will
+        an IfElseComponent.
+
+        """
+        return []
+
 
 class CustomQueryComponent(QueryComponent):
     """Custom query component."""
@@ -255,44 +282,30 @@ class CustomQueryComponent(QueryComponent):
         return OutputKeys.from_keys(self._output_keys)
 
 
-class InputComponent(QueryComponent):
-    """Input component."""
+class Link(BaseModel):
+    """Link between two components."""
 
-    def _validate_component_inputs(self, input: Dict[str, Any]) -> Dict[str, Any]:
-        return input
+    src: str = Field(..., description="Source component name")
+    dest: str = Field(..., description="Destination component name")
+    src_key: Optional[str] = Field(
+        default=None, description="Source component output key"
+    )
+    dest_key: Optional[str] = Field(
+        default=None, description="Destination component input key"
+    )
 
-    def _validate_component_outputs(self, input: Dict[str, Any]) -> Dict[str, Any]:
-        return input
+    def __init__(
+        self,
+        src: str,
+        dest: str,
+        src_key: Optional[str] = None,
+        dest_key: Optional[str] = None,
+    ) -> None:
+        """Init params."""
+        # NOTE: This is to enable positional args.
+        super().__init__(src=src, dest=dest, src_key=src_key, dest_key=dest_key)
 
-    def validate_component_inputs(self, input: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate component inputs."""
-        # NOTE: we override this to do nothing
-        return input
 
-    def validate_component_outputs(self, output: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate component outputs."""
-        # NOTE: we override this to do nothing
-        return output
-
-    def set_callback_manager(self, callback_manager: Any) -> None:
-        """Set callback manager."""
-
-    def _run_component(self, **kwargs: Any) -> Any:
-        """Run component."""
-        return kwargs
-
-    async def _arun_component(self, **kwargs: Any) -> Any:
-        """Run component (async)."""
-        return self._run_component(**kwargs)
-
-    @property
-    def input_keys(self) -> InputKeys:
-        """Input keys."""
-        # NOTE: this shouldn't be used
-        return InputKeys.from_keys(set(), optional_keys=set())
-        # return InputComponentKeys.from_keys(set(), optional_keys=set())
-
-    @property
-    def output_keys(self) -> OutputKeys:
-        """Output keys."""
-        return OutputKeys.from_keys(set())
+# accept both QueryComponent and ChainableMixin as inputs to query pipeline
+# ChainableMixin modules will be converted to components via `as_query_component`
+QUERY_COMPONENT_TYPE = Union[QueryComponent, ChainableMixin]

@@ -1,6 +1,6 @@
 """Base vector store index.
 
-An index that that is built on top of an existing vector store.
+An index that is built on top of an existing vector store.
 
 """
 import logging
@@ -11,7 +11,7 @@ from llama_index.core.base_retriever import BaseRetriever
 from llama_index.data_structs.data_structs import IndexDict
 from llama_index.indices.base import BaseIndex
 from llama_index.indices.utils import async_embed_nodes, embed_nodes
-from llama_index.schema import BaseNode, ImageNode, IndexNode
+from llama_index.schema import BaseNode, ImageNode, IndexNode, MetadataMode
 from llama_index.service_context import ServiceContext
 from llama_index.storage.docstore.types import RefDocInfo
 from llama_index.storage.storage_context import StorageContext
@@ -36,6 +36,7 @@ class VectorStoreIndex(BaseIndex[IndexDict]):
     def __init__(
         self,
         nodes: Optional[Sequence[BaseNode]] = None,
+        objects: Optional[Sequence[IndexNode]] = None,
         index_struct: Optional[IndexDict] = None,
         service_context: Optional[ServiceContext] = None,
         storage_context: Optional[StorageContext] = None,
@@ -55,6 +56,7 @@ class VectorStoreIndex(BaseIndex[IndexDict]):
             service_context=service_context,
             storage_context=storage_context,
             show_progress=show_progress,
+            objects=objects,
             **kwargs,
         )
 
@@ -87,6 +89,7 @@ class VectorStoreIndex(BaseIndex[IndexDict]):
             self,
             node_ids=list(self.index_struct.nodes_dict.values()),
             callback_manager=self._service_context.callback_manager,
+            object_map=self._object_map,
             **kwargs,
         )
 
@@ -259,6 +262,15 @@ class VectorStoreIndex(BaseIndex[IndexDict]):
             VectorStoreIndex only stores nodes in document store
             if vector store does not store text
         """
+        # raise an error if even one node has no content
+        if any(
+            node.get_content(metadata_mode=MetadataMode.EMBED) == "" for node in nodes
+        ):
+            raise ValueError(
+                "Cannot build index from nodes with no content. "
+                "Please ensure all nodes have content."
+            )
+
         return self._build_index_from_nodes(nodes, **insert_kwargs)
 
     def _insert(self, nodes: Sequence[BaseNode], **insert_kwargs: Any) -> None:
@@ -287,7 +299,7 @@ class VectorStoreIndex(BaseIndex[IndexDict]):
         """Delete a list of nodes from the index.
 
         Args:
-            doc_ids (List[str]): A list of doc_ids from the nodes to delete
+            node_ids (List[str]): A list of node_ids from the nodes to delete
 
         """
         raise NotImplementedError(

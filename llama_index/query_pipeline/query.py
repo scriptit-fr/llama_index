@@ -2,24 +2,23 @@
 
 import json
 import uuid
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, cast, get_args
 
 import networkx
 
+from llama_index.async_utils import run_jobs
 from llama_index.bridge.pydantic import Field
 from llama_index.callbacks import CallbackManager
 from llama_index.callbacks.schema import CBEventType, EventPayload
 from llama_index.core.query_pipeline.query_component import (
+    QUERY_COMPONENT_TYPE,
     ChainableMixin,
     InputKeys,
+    Link,
     OutputKeys,
     QueryComponent,
 )
 from llama_index.utils import print_text
-
-# accept both QueryComponent and ChainableMixin as inputs to query pipeline
-# ChainableMixin modules will be converted to components via `as_query_component`
-QUERY_COMPONENT_TYPE = Union[QueryComponent, ChainableMixin]
 
 
 def add_output_to_module_inputs(
@@ -73,6 +72,31 @@ def print_debug_input(
     print_text(output + "\n", color="llama_lavender")
 
 
+def print_debug_input_multi(
+    module_keys: List[str],
+    module_inputs: List[Dict[str, Any]],
+    val_str_len: int = 200,
+) -> None:
+    """Print debug input."""
+    output = f"> Running modules and inputs in parallel: \n"
+    for module_key, input in zip(module_keys, module_inputs):
+        cur_output = f"Module key: {module_key}. Input: \n"
+        for key, value in input.items():
+            # stringify and truncate output
+            val_str = (
+                str(value)[:val_str_len] + "..."
+                if len(str(value)) > val_str_len
+                else str(value)
+            )
+            cur_output += f"{key}: {val_str}\n"
+        output += cur_output + "\n"
+
+    print_text(output + "\n", color="llama_lavender")
+
+
+CHAIN_COMPONENT_TYPE = Union[QUERY_COMPONENT_TYPE, str]
+
+
 class QueryPipeline(QueryComponent):
     """A query pipeline that can allow arbitrary chaining of different modules.
 
@@ -93,6 +117,13 @@ class QueryPipeline(QueryComponent):
     verbose: bool = Field(
         default=False, description="Whether to print intermediate steps."
     )
+    show_progress: bool = Field(
+        default=False,
+        description="Whether to show progress bar (currently async only).",
+    )
+    num_workers: int = Field(
+        default=4, description="Number of workers to use (currently async only)."
+    )
 
     class Config:
         arbitrary_types_allowed = True
@@ -100,7 +131,9 @@ class QueryPipeline(QueryComponent):
     def __init__(
         self,
         callback_manager: Optional[CallbackManager] = None,
-        chain: Optional[Sequence[QUERY_COMPONENT_TYPE]] = None,
+        chain: Optional[Sequence[CHAIN_COMPONENT_TYPE]] = None,
+        modules: Optional[Dict[str, QUERY_COMPONENT_TYPE]] = None,
+        links: Optional[List[Link]] = None,
         **kwargs: Any,
     ):
         super().__init__(
@@ -108,11 +141,26 @@ class QueryPipeline(QueryComponent):
             **kwargs,
         )
 
-        if chain is not None:
-            # generate implicit link between each item, add
-            self.add_chain(chain)
+        self._init_graph(chain=chain, modules=modules, links=links)
 
-    def add_chain(self, chain: Sequence[QUERY_COMPONENT_TYPE]) -> None:
+    def _init_graph(
+        self,
+        chain: Optional[Sequence[CHAIN_COMPONENT_TYPE]] = None,
+        modules: Optional[Dict[str, QUERY_COMPONENT_TYPE]] = None,
+        links: Optional[List[Link]] = None,
+    ) -> None:
+        """Initialize graph."""
+        if chain is not None:
+            if modules is not None or links is not None:
+                raise ValueError("Cannot specify both chain and modules/links in init.")
+            self.add_chain(chain)
+        elif modules is not None:
+            self.add_modules(modules)
+            if links is not None:
+                for link in links:
+                    self.add_link(**link.dict())
+
+    def add_chain(self, chain: Sequence[CHAIN_COMPONENT_TYPE]) -> None:
         """Add a chain of modules to the pipeline.
 
         This is a special form of pipeline that is purely sequential/linear.
@@ -120,15 +168,28 @@ class QueryPipeline(QueryComponent):
 
         """
         # first add all modules
-        module_keys = []
+        module_keys: List[str] = []
         for module in chain:
-            module_key = str(uuid.uuid4())
-            self.add(module_key, module)
-            module_keys.append(module_key)
+            if isinstance(module, get_args(QUERY_COMPONENT_TYPE)):
+                module_key = str(uuid.uuid4())
+                self.add(module_key, cast(QUERY_COMPONENT_TYPE, module))
+                module_keys.append(module_key)
+            elif isinstance(module, str):
+                module_keys.append(module)
+            else:
+                raise ValueError("Chain must be a sequence of modules or module keys.")
 
         # then add all links
         for i in range(len(chain) - 1):
             self.add_link(src=module_keys[i], dest=module_keys[i + 1])
+
+    def add_links(
+        self,
+        links: List[Link],
+    ) -> None:
+        """Add links to the pipeline."""
+        for link in links:
+            self.add_link(**link.dict())
 
     def add_modules(self, module_dict: Dict[str, QUERY_COMPONENT_TYPE]) -> None:
         """Add modules to the pipeline."""
@@ -161,6 +222,14 @@ class QueryPipeline(QueryComponent):
             raise ValueError(f"Module {src} does not exist in pipeline.")
         self.dag.add_edge(src, dest, src_key=src_key, dest_key=dest_key)
 
+    def get_root_keys(self) -> List[str]:
+        """Get root keys."""
+        return self._get_root_keys()
+
+    def get_leaf_keys(self) -> List[str]:
+        """Get leaf keys."""
+        return self._get_leaf_keys()
+
     def _get_root_keys(self) -> List[str]:
         """Get root keys."""
         return [v for v, d in self.dag.in_degree() if d == 0]
@@ -189,8 +258,13 @@ class QueryPipeline(QueryComponent):
         callback_manager = callback_manager or self.callback_manager
         self.set_callback_manager(callback_manager)
         with self.callback_manager.as_trace("query"):
+            # try to get query payload
+            try:
+                query_payload = json.dumps(kwargs)
+            except TypeError:
+                query_payload = json.dumps(str(kwargs))
             with self.callback_manager.event(
-                CBEventType.QUERY, payload={EventPayload.QUERY_STR: json.dumps(kwargs)}
+                CBEventType.QUERY, payload={EventPayload.QUERY_STR: query_payload}
             ) as query_event:
                 return self._run(
                     *args, return_values_direct=return_values_direct, **kwargs
@@ -223,8 +297,12 @@ class QueryPipeline(QueryComponent):
         callback_manager = callback_manager or self.callback_manager
         self.set_callback_manager(callback_manager)
         with self.callback_manager.as_trace("query"):
+            try:
+                query_payload = json.dumps(kwargs)
+            except TypeError:
+                query_payload = json.dumps(str(kwargs))
             with self.callback_manager.event(
-                CBEventType.QUERY, payload={EventPayload.QUERY_STR: json.dumps(kwargs)}
+                CBEventType.QUERY, payload={EventPayload.QUERY_STR: query_payload}
             ) as query_event:
                 return await self._arun(
                     *args, return_values_direct=return_values_direct, **kwargs
@@ -426,24 +504,64 @@ class QueryPipeline(QueryComponent):
             all_module_inputs[module_key] = module_input
 
         while len(queue) > 0:
-            module_key = queue.pop(0)
-            module = self.module_dict[module_key]
-            module_input = all_module_inputs[module_key]
+            popped_indices = set()
+            popped_nodes = []
+            # get subset of nodes who don't have ancestors also in the queue
+            # these are tasks that are parallelizable
+            for i, module_key in enumerate(queue):
+                module_ancestors = networkx.ancestors(self.dag, module_key)
+                if len(set(module_ancestors).intersection(queue)) == 0:
+                    popped_indices.add(i)
+                    popped_nodes.append(module_key)
+
+            # update queue
+            queue = [
+                module_key
+                for i, module_key in enumerate(queue)
+                if i not in popped_indices
+            ]
 
             if self.verbose:
-                print_debug_input(module_key, module_input)
-            output_dict = await module.arun_component(**module_input)
+                print_debug_input_multi(
+                    popped_nodes,
+                    [all_module_inputs[module_key] for module_key in popped_nodes],
+                )
 
-            # get new nodes and is_leaf
-            self._process_component_output(
-                output_dict, module_key, all_module_inputs, result_outputs
+            # create tasks from popped nodes
+            tasks = []
+            for module_key in popped_nodes:
+                module = self.module_dict[module_key]
+                module_input = all_module_inputs[module_key]
+                tasks.append(module.arun_component(**module_input))
+
+            # run tasks
+            output_dicts = await run_jobs(
+                tasks, show_progress=self.show_progress, workers=self.num_workers
             )
+
+            for output_dict, module_key in zip(output_dicts, popped_nodes):
+                # get new nodes and is_leaf
+                self._process_component_output(
+                    output_dict, module_key, all_module_inputs, result_outputs
+                )
 
         return result_outputs
 
     def _validate_component_inputs(self, input: Dict[str, Any]) -> Dict[str, Any]:
         """Validate component inputs during run_component."""
+        raise NotImplementedError
+
+    def validate_component_inputs(self, input: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate component inputs."""
         return input
+
+    def _validate_component_outputs(self, input: Dict[str, Any]) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    def validate_component_outputs(self, output: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate component outputs."""
+        # NOTE: we override this to do nothing
+        return output
 
     def _run_component(self, **kwargs: Any) -> Dict[str, Any]:
         """Run component."""
@@ -472,3 +590,8 @@ class QueryPipeline(QueryComponent):
             raise ValueError("Only one leaf is supported.")
         leaf_module = self.module_dict[leaf_keys[0]]
         return leaf_module.output_keys
+
+    @property
+    def sub_query_components(self) -> List[QueryComponent]:
+        """Sub query components."""
+        return list(self.module_dict.values())

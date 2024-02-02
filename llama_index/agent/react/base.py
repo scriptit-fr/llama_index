@@ -29,6 +29,7 @@ from llama_index.llms.openai import OpenAI
 from llama_index.memory.chat_memory_buffer import ChatMemoryBuffer
 from llama_index.memory.types import BaseMemory
 from llama_index.objects.base import ObjectRetriever
+from llama_index.prompts.mixin import PromptMixinType
 from llama_index.tools import BaseTool
 
 DEFAULT_MODEL_NAME = "gpt-3.5-turbo-0613"
@@ -57,9 +58,15 @@ class ReActAgent(AgentRunner):
         callback_manager: Optional[CallbackManager] = None,
         verbose: bool = False,
         tool_retriever: Optional[ObjectRetriever[BaseTool]] = None,
+        context: Optional[str] = None,
     ) -> None:
         """Init params."""
         callback_manager = callback_manager or llm.callback_manager
+        if context and react_chat_formatter:
+            raise ValueError("Cannot provide both context and react_chat_formatter")
+        if context:
+            react_chat_formatter = ReActChatFormatter.from_context(context)
+
         step_engine = ReActAgentWorker.from_tools(
             tools=tools,
             tool_retriever=tool_retriever,
@@ -91,6 +98,7 @@ class ReActAgent(AgentRunner):
         output_parser: Optional[ReActOutputParser] = None,
         callback_manager: Optional[CallbackManager] = None,
         verbose: bool = False,
+        context: Optional[str] = None,
         **kwargs: Any,
     ) -> "ReActAgent":
         """Convenience constructor method from set of of BaseTools (Optional).
@@ -119,4 +127,9 @@ class ReActAgent(AgentRunner):
             output_parser=output_parser,
             callback_manager=callback_manager,
             verbose=verbose,
+            context=context,
         )
+
+    def _get_prompt_modules(self) -> PromptMixinType:
+        """Get prompt modules."""
+        return {"agent_worker": self.agent_worker}
