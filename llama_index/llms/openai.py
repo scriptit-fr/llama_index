@@ -367,6 +367,7 @@ class OpenAI(LLM):
             tool_calls: List[ChoiceDeltaToolCall] = []
 
             is_function = False
+            start_time = time.time()
             for response in client.chat.completions.create(
                 messages=message_dicts,
                 stream=True,
@@ -405,6 +406,7 @@ class OpenAI(LLM):
                     raw=response,
                     additional_kwargs=self._get_response_token_counts(response),
                 )
+            print("Request stream took %s seconds" % round(time.time() - start_time, 2))
 
         return gen()
 
@@ -434,6 +436,7 @@ class OpenAI(LLM):
 
         def gen() -> CompletionResponseGen:
             text = ""
+            start_time = time.time()
             for response in client.completions.create(
                 prompt=prompt,
                 stream=True,
@@ -450,6 +453,7 @@ class OpenAI(LLM):
                     raw=response,
                     additional_kwargs=self._get_response_token_counts(response),
                 )
+            print("Request stream took %s seconds" % round(time.time() - start_time, 2))
 
         return gen()
 
