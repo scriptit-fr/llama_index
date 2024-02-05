@@ -68,7 +68,7 @@ class SentenceEmbeddingOptimizer(BaseNodePostprocessor):
         if tokenizer_fn is None:
             import nltk.data
 
-            tokenizer = nltk.data.load("tokenizers/punkt/english.pickle")
+            tokenizer = nltk.data.load("tokenizers/punkt/english.pickle", quiet=True)
             tokenizer_fn = tokenizer.tokenize
         self._tokenizer_fn = tokenizer_fn
 
