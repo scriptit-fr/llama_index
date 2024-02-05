@@ -57,12 +57,12 @@ class GlobalsHelper:
 
         # ensure access to data is there
         try:
-            nltk.data.find("corpora/stopwords", paths=[self._nltk_data_dir], quiet=True)
+            nltk.data.find("corpora/stopwords", paths=[self._nltk_data_dir])
         except LookupError:
             nltk.download("stopwords", download_dir=self._nltk_data_dir, quiet=True)
 
         try:
-            nltk.data.find("tokenizers/punkt", paths=[self._nltk_data_dir], quiet=True)
+            nltk.data.find("tokenizers/punkt", paths=[self._nltk_data_dir])
         except LookupError:
             nltk.download("punkt", download_dir=self._nltk_data_dir, quiet=True)
 
