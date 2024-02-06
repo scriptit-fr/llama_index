@@ -13,7 +13,6 @@ from typing import (
 
 import httpx
 import tiktoken
-import time
 from openai import AsyncOpenAI, AzureOpenAI
 from openai import OpenAI as SyncOpenAI
 from openai.types.chat.chat_completion_chunk import (
@@ -294,13 +293,11 @@ class OpenAI(LLM):
     def _chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatResponse:
         client = self._get_client()
         message_dicts = to_openai_message_dicts(messages)
-        start_time = time.time()
         response = client.chat.completions.create(
             messages=message_dicts,
             stream=False,
             **self._get_model_kwargs(**kwargs),
         )
-        print("Request took %s seconds" % round(time.time() - start_time, 2))
         openai_message = response.choices[0].message
         message = from_openai_message(openai_message)
 
@@ -367,7 +364,6 @@ class OpenAI(LLM):
             tool_calls: List[ChoiceDeltaToolCall] = []
 
             is_function = False
-            start_time = time.time()
             for response in client.chat.completions.create(
                 messages=message_dicts,
                 stream=True,
@@ -406,7 +402,6 @@ class OpenAI(LLM):
                     raw=response,
                     additional_kwargs=self._get_response_token_counts(response),
                 )
-            print("Request stream took %s seconds" % round(time.time() - start_time, 2))
 
         return gen()
 
@@ -414,13 +409,11 @@ class OpenAI(LLM):
         client = self._get_client()
         all_kwargs = self._get_model_kwargs(**kwargs)
         self._update_max_tokens(all_kwargs, prompt)
-        start_time = time.time()
         response = client.completions.create(
             prompt=prompt,
             stream=False,
             **all_kwargs,
         )
-        print("Request took %s seconds" % round(time.time() - start_time, 2))
 
         text = response.choices[0].text
         return CompletionResponse(
@@ -436,7 +429,6 @@ class OpenAI(LLM):
 
         def gen() -> CompletionResponseGen:
             text = ""
-            start_time = time.time()
             for response in client.completions.create(
                 prompt=prompt,
                 stream=True,
@@ -453,7 +445,6 @@ class OpenAI(LLM):
                     raw=response,
                     additional_kwargs=self._get_response_token_counts(response),
                 )
-            print("Request stream took %s seconds" % round(time.time() - start_time, 2))
 
         return gen()
 
