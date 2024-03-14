@@ -131,7 +131,6 @@ class SQLDatabase:
                 only=list(self._usable_tables),
                 schema=self._schema,
             )
-        print(preprocess_query_function)
         self._preprocess_query_function = preprocess_query_function
 
     @property

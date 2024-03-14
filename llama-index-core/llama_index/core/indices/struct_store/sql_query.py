@@ -314,6 +314,7 @@ class BaseSQLTableQueryEngine(BaseQueryEngine):
         verbose: bool = False,
         # deprecated
         service_context: Optional[ServiceContext] = None,
+        skip_table_verification: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialize params."""
@@ -335,6 +336,7 @@ class BaseSQLTableQueryEngine(BaseQueryEngine):
 
         self._synthesize_response = synthesize_response
         self._verbose = verbose
+        self._skip_table_verification = skip_table_verification
         super().__init__(
             callback_manager=callback_manager
             or callback_manager_from_settings_or_context(Settings, service_context),
@@ -367,7 +369,7 @@ class BaseSQLTableQueryEngine(BaseQueryEngine):
     def _query(self, query_bundle: QueryBundle) -> Response:
         """Answer a query."""
         retrieved_nodes, metadata = self.sql_retriever.retrieve_with_metadata(
-            query_bundle
+            query_bundle, self._skip_table_verification
         )
 
         sql_query_str = metadata["sql_query"]
@@ -441,8 +443,8 @@ class NLSQLTableQueryEngine(BaseSQLTableQueryEngine):
         service_context_text_to_sql: Optional[ServiceContext] = None,
         service_context_synthesis: Optional[ServiceContext] = None,
         context_str_prefix: Optional[str] = None,
-        sql_only: bool = False,
         callback_manager: Optional[CallbackManager] = None,
+        sql_only: bool = False,
         verbose: bool = False,
         skip_table_verification: bool = False,
         **kwargs: Any,
