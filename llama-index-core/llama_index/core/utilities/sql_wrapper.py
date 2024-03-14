@@ -56,6 +56,7 @@ class SQLDatabase:
         """Create engine from database URI."""
         self._engine = engine
         self._schema = schema
+        self._skip_table_verification = skip_table_verification
         if include_tables and ignore_tables:
             raise ValueError("Cannot specify both include_tables and ignore_tables")
 
@@ -63,7 +64,7 @@ class SQLDatabase:
 
         # including view support by adding the views as well as tables to the all
         # tables list if view_support is True
-        if skip_table_verification:
+        if self._skip_table_verification:
             self._all_tables = set(include_tables)
         else:
             self._all_tables = set(
@@ -117,7 +118,7 @@ class SQLDatabase:
 
         self._metadata = metadata or MetaData()
         # including view support if view_support = true
-        if skip_table_verification:
+        if self._skip_table_verification:
             self._metadata.reflect(
                 views=view_support,
                 bind=self._engine,
@@ -130,7 +131,8 @@ class SQLDatabase:
                 only=list(self._usable_tables),
                 schema=self._schema,
             )
-        self.preprocess_query_function = preprocess_query_function
+        print(preprocess_query_function)
+        self._preprocess_query_function = preprocess_query_function
 
     @property
     def engine(self) -> Engine:
@@ -218,8 +220,8 @@ class SQLDatabase:
 
     def _preprocess_query(self, query: str) -> str:
         """Preprocess the SQL query."""
-        if self.preprocess_query_function:
-            return self.preprocess_query_function(query)
+        if self._preprocess_query_function:
+            return self._preprocess_query_function(query)
         return (
             query  # Return the query unchanged if no preprocessing function is provided
         )
