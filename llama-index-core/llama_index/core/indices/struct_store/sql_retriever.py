@@ -281,17 +281,20 @@ class NLSQLRetriever(BaseRetriever, PromptMixin):
             return lambda _: table_schemas
 
     def retrieve_with_metadata(
-        self, str_or_query_bundle: QueryType
+        self, str_or_query_bundle: QueryType, skip_table_verification: bool
     ) -> Tuple[List[NodeWithScore], Dict]:
         """Retrieve with metadata."""
         if isinstance(str_or_query_bundle, str):
             query_bundle = QueryBundle(str_or_query_bundle)
         else:
             query_bundle = str_or_query_bundle
-        table_desc_str = self._get_table_context(query_bundle)
-        logger.info(f"> Table desc str: {table_desc_str}")
-        if self._verbose:
-            print(f"> Table desc str: {table_desc_str}")
+
+        table_desc_str = ""
+        if not skip_table_verification:
+            table_desc_str = self._get_table_context(query_bundle)
+            logger.info(f"> Table desc str: {table_desc_str}")
+            if self._verbose:
+                print(f"> Table desc str: {table_desc_str}")
 
         response_str = self._llm.predict(
             self._text_to_sql_prompt,
