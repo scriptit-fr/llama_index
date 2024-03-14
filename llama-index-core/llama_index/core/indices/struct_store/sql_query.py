@@ -289,14 +289,17 @@ class NLStructStoreQueryEngine(BaseQueryEngine):
 
 
 def _validate_prompt(
-    custom_prompt: BasePromptTemplate,
-    default_prompt: BasePromptTemplate,
+    response_synthesis_prompt: BasePromptTemplate,
+    default_synthesis_prompt: BasePromptTemplate,
 ) -> None:
     """Validate prompt."""
-    if custom_prompt.template_vars != default_prompt.template_vars:
+    if (
+        response_synthesis_prompt.template_vars
+        != default_synthesis_prompt.template_vars
+    ):
         raise ValueError(
-            "custom_prompt must have the following template variables: "
-            f"{default_prompt.template_vars}"
+            "response_synthesis_prompt must have the following template variables: "
+            f"{default_synthesis_prompt.template_vars}"
         )
 
 
@@ -435,11 +438,13 @@ class NLSQLTableQueryEngine(BaseSQLTableQueryEngine):
         response_synthesis_prompt: Optional[BasePromptTemplate] = None,
         refine_synthesis_prompt: Optional[BasePromptTemplate] = None,
         tables: Optional[Union[List[str], List[Table]]] = None,
-        service_context: Optional[ServiceContext] = None,
+        service_context_text_to_sql: Optional[ServiceContext] = None,
+        service_context_synthesis: Optional[ServiceContext] = None,
         context_str_prefix: Optional[str] = None,
         sql_only: bool = False,
         callback_manager: Optional[CallbackManager] = None,
         verbose: bool = False,
+        skip_table_verification: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialize params."""
@@ -451,7 +456,7 @@ class NLSQLTableQueryEngine(BaseSQLTableQueryEngine):
             context_query_kwargs=context_query_kwargs,
             tables=tables,
             context_str_prefix=context_str_prefix,
-            service_context=service_context,
+            service_context=service_context_text_to_sql,
             sql_only=sql_only,
             callback_manager=callback_manager,
             verbose=verbose,
@@ -461,9 +466,10 @@ class NLSQLTableQueryEngine(BaseSQLTableQueryEngine):
             response_synthesis_prompt=response_synthesis_prompt,
             refine_synthesis_prompt=refine_synthesis_prompt,
             llm=llm,
-            service_context=service_context,
+            service_context=service_context_synthesis,
             callback_manager=callback_manager,
             verbose=verbose,
+            skip_table_verification=skip_table_verification,
             **kwargs,
         )
 
