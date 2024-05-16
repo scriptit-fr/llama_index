@@ -1,5 +1,6 @@
 """SQL wrapper around SQLDatabase in langchain."""
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Callable
 
 from sqlalchemy import MetaData, create_engine, insert, inspect, text
 from sqlalchemy.engine import Engine
@@ -49,10 +50,13 @@ class SQLDatabase:
         custom_table_info: Optional[dict] = None,
         view_support: bool = False,
         max_string_length: int = 300,
+        preprocess_query_function: Callable[..., Any] = None,
+        skip_table_verification: bool = False,
     ):
         """Create engine from database URI."""
         self._engine = engine
         self._schema = schema
+        self._skip_table_verification = skip_table_verification
         if include_tables and ignore_tables:
             raise ValueError("Cannot specify both include_tables and ignore_tables")
 
@@ -60,10 +64,17 @@ class SQLDatabase:
 
         # including view support by adding the views as well as tables to the all
         # tables list if view_support is True
-        self._all_tables = set(
-            self._inspector.get_table_names(schema=schema)
-            + (self._inspector.get_view_names(schema=schema) if view_support else [])
-        )
+        if self._skip_table_verification:
+            self._all_tables = set(include_tables)
+        else:
+            self._all_tables = set(
+                self._inspector.get_table_names(schema=schema)
+                + (
+                    self._inspector.get_view_names(schema=schema)
+                    if view_support
+                    else []
+                )
+            )
 
         self._include_tables = set(include_tables) if include_tables else set()
         if self._include_tables:
@@ -107,12 +118,20 @@ class SQLDatabase:
 
         self._metadata = metadata or MetaData()
         # including view support if view_support = true
-        self._metadata.reflect(
-            views=view_support,
-            bind=self._engine,
-            only=list(self._usable_tables),
-            schema=self._schema,
-        )
+        if self._skip_table_verification:
+            self._metadata.reflect(
+                views=view_support,
+                bind=self._engine,
+                schema=self._schema,
+            )
+        else:
+            self._metadata.reflect(
+                views=view_support,
+                bind=self._engine,
+                only=list(self._usable_tables),
+                schema=self._schema,
+            )
+        self._preprocess_query_function = preprocess_query_function
 
     @property
     def engine(self) -> Engine:
@@ -150,19 +169,10 @@ class SQLDatabase:
     def get_single_table_info(self, table_name: str) -> str:
         """Get table info for a single table."""
         # same logic as table_info, but with specific table names
-        template = "Table '{table_name}' has columns: {columns}, "
-        try:
-            # try to retrieve table comment
-            table_comment = self._inspector.get_table_comment(
-                table_name, schema=self._schema
-            )["text"]
-            if table_comment:
-                template += f"with comment: ({table_comment}) "
-        except NotImplementedError:
-            # get_table_comment raises NotImplementedError for a dialect that does not support comments.
-            pass
-
-        template += "and foreign keys: {foreign_keys}."
+        template = (
+            "Table '{table_name}' has columns: {columns}, "
+            "and foreign keys: {foreign_keys}."
+        )
         columns = []
         for column in self._inspector.get_columns(table_name, schema=self._schema):
             if column.get("comment"):
@@ -207,12 +217,21 @@ class SQLDatabase:
 
         return content[: length - len(suffix)].rsplit(" ", 1)[0] + suffix
 
+    def _preprocess_query(self, query: str) -> str:
+        """Preprocess the SQL query."""
+        if self._preprocess_query_function:
+            return self._preprocess_query_function(query)
+        return (
+            query  # Return the query unchanged if no preprocessing function is provided
+        )
+
     def run_sql(self, command: str) -> Tuple[str, Dict]:
         """Execute a SQL statement and return a string representing the results.
 
         If the statement returns rows, a string of the results is returned.
         If the statement returns no rows, an empty string is returned.
         """
+        command = self._preprocess_query(command)
         with self._engine.begin() as connection:
             try:
                 if self._schema:
